@@ -1,6 +1,12 @@
-use rand::seq::SliceRandom;
+use rand::prelude::SliceRandom;
+use rand;
+use std::borrow::BorrowMut;
 use std::io;
 use std::io::Write;
+use std::cell::RefCell;
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+use std::sync::MutexGuard;
 
 enum Actions {
     Hit,
@@ -23,7 +29,7 @@ enum Card {
     Queen,
     King,
 }
-
+#[derive(Debug)]
 struct Game {
     player: Vec<Card>,
     dealer: Vec<Card>,
@@ -44,12 +50,14 @@ impl Game {
         }
     }
 
-    fn deal_card(&mut self, player: bool) {
-        let card = self.draw_card();
-        if player {
-            self.player.push(card);
-        } else {
-            self.dealer.push(card);
+    fn deal_card(&mut self, player: bool, n:i32) {
+        for _i in 0..n {
+            let card = self.draw_card();
+            if player {
+                self.player.push(card);
+            } else {
+                self.dealer.push(card);
+            }
         }
     }
 
@@ -62,11 +70,13 @@ impl Game {
         card
     }
 
-    fn calculate_score(&self, player: bool) -> u32 {
+    fn calculate_score(&self, player: bool, mut n:i8) -> u32 {
         let hand = if player { &self.player } else { &self.dealer };
         let mut score = 0;
         let mut aces = 0;
-        for card in hand {
+        n = if n > hand.len() as i8 || n==0{ hand.len() as i8 } else { n };
+        for i in 0..n {
+            let card = &hand[i as usize];
             match card {
                 Card::Ace => {
                     score += 11;
@@ -89,56 +99,91 @@ impl Game {
         }
         score
     }
+
     fn show(&self) {
-        println!("Player's hand: {:?}  score:{}", &self.player, self.calculate_score(true));
-        println!("Dealer's hand: {:?}  score:{}", &self.dealer, self.calculate_score(false));
+        println!("Player's hand: {:?}  score:{}", &self.player, self.calculate_score(true, 0));
+        println!("Dealer's hand: {:?}  score:{}", &self.dealer, self.calculate_score(false, 0));
     }
+
+    fn dealer_turn(&mut self) {
+        while self.calculate_score(false, 0) < 17 {
+            self.deal_card(false, 1);
+        }
+    }
+
+    fn result(&self) -> f64 {
+        let ds = self.calculate_score(false, 0);    ;
+        let ps = self.calculate_score(true, 0);
+
+        let pbj = {
+            if self.player.len() == 2 && ps == 21 {true} else {false}
+        };
+        let dbj = {
+            if self.dealer.len() == 2 && ds == 21 {true} else {false}
+        };
+        if pbj && !dbj{
+            1.5
+        } else if dbj && !pbj || ps > 21 || ds > ps && ds<=21{
+            -1.0
+        } else if ps > ds || ds > 21{
+            1.0
+        } else if pbj && dbj || ps == ds{            
+            0.0
+        }else{
+            panic!("bizzar, pas de result.\n game:\n {:?}\n", self);
+        }
+        
+
+    }   
 
 }
-fn main(){
-    let mut game = Game::new();
-    game.deal_card(true);
-    game.deal_card(false);
-    game.deal_card(true);
-    game.deal_card(false);
 
-    game.show();
-    
-    loop{
-        let mut input = String::new();
-        println!("choose action: \n    1: hit\n    2: stand");
+
+static GLOBAL_GAME: Lazy<Mutex<Game>> = Lazy::new(|| Mutex::new(Game::new()));
+static MONEY: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(50.0));
+
+fn new_game(show:bool) -> MutexGuard<'static, Game> {
+    let mut game = GLOBAL_GAME.lock().unwrap(); 
+    *game = Game::new();                        
+    game.deal_card(true, 2);
+    game.deal_card(false, 2);
+    if show{game.show()}
+    game
+}
+
+fn strat1() {
+    let mut game = new_game(false);
+    let mut money = MONEY.lock().unwrap();
+    let bet = 10.0;
+    loop{  
+        let player_score = game.calculate_score(true, 0);
+        let dealer_score = game.calculate_score(false, 1);
+
+        if player_score > 16 || player_score >= 12 && dealer_score < 7 || player_score > 21{
+            break;
+        } else if player_score < 17 && dealer_score > 7 {
+            game.deal_card(true, 1);
+        }else{break}
+    }
+        
+    if game.calculate_score(true, 0) > 21 {
+        *money -= bet;
+        return;
+    }
+ 
+    game.dealer_turn();
+    let r = game.result();
+    *money+=r*bet;
+
+
+}
+fn main() {
+    for i in 0..1000{
+        strat1();
+        println!("{}: money: {}", i, *MONEY.lock().unwrap());
+        let game = GLOBAL_GAME.lock().unwrap();
         io::stdout().flush().unwrap();
-        io::stdin().read_line(&mut input).unwrap();
-        input = input.trim().to_string();
-        let action = if input == "1"{Some(Actions::Hit)} else if input == "2"{Some(Actions::Stand)} else {None};
-        if action.is_none(){
-            println!("please, choose a valid action");
-            continue;
-        }
-        let action = action.unwrap();
-        match action {
-            Actions::Hit => {game.deal_card(true); 
-                game.show()},
-            Actions::Stand => break,
-        }
-        if game.calculate_score(true) > 21 {
-            println!("Player busts! Dealer wins.");
-            return;
-        }
-    }
+        
 
-    while game.calculate_score(false) < 17 {
-        game.deal_card(false);
-    }
-
-    game.show();
-    if game.calculate_score(false) > 21 {
-        println!("Dealer busts! Player wins.");
-    } else if game.calculate_score(true) > game.calculate_score(false) {
-        println!("Player wins!");
-    } else if game.calculate_score(false) > game.calculate_score(true) {
-        println!("Dealer wins!");
-    } else {
-        println!("It's a tie!");
     }
 }

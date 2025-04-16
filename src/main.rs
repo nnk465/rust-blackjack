@@ -178,7 +178,7 @@ fn strat1() {
 
 }
 fn main() {
-    for i in 0..1000{
+    for i in 0..1000 {
         strat1();
         println!("{}: money: {}", i, *MONEY.lock().unwrap());
         let game = GLOBAL_GAME.lock().unwrap();

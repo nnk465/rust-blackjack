@@ -172,7 +172,7 @@ fn strat1() {
 
 }
 fn main() {
-    for i in 0..1000 {
+    for i in 0..100000 {
         strat1();
         println!("{}: money: {}", i, *MONEY.lock().unwrap());
         io::stdout().flush().unwrap();

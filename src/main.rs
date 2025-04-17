@@ -254,7 +254,7 @@ fn main(){
     let mut t = 0.0;
     let mut money = 1000.0;
     let bet = 10;
-    for _i in 0..100{
+    for _i in 0..1000{
         let mut game = Game::new(bet);
         game.deal_to_player(2, 0);
         game.deal_to_dealer(2);

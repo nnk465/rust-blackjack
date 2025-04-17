@@ -37,6 +37,7 @@ impl Card {
     }
 }
 
+#[derive(Debug)]
 enum HandType {
     Hard(u8),
     Soft(u8),
@@ -151,7 +152,7 @@ impl Game {
         for pn in 0..(pd.len()){
             let ps = calculate_score(&pd[pn].cards, true);
             let pbj = {
-                if self.player.len() == 2 && ps == 21 {true} else {false}
+                if self.player[pn].cards.len() == 2 && ps == 21 {true} else {false}
             };
             if pbj && !dbj{
                 total_score += 1.5;
@@ -177,12 +178,13 @@ impl Game {
 
 
 fn calculate_score(hand: &[Card], count_aces: bool) -> u32 {
-    let mut score = 0;
+    let mut score:u32 = 0;
     let mut aces = 0;
     for card in hand {
-        if card == &Card::Ace && count_aces {aces += 1;
-            score += 11
-        } else {score += card.value();}   
+        if card == &Card::Ace{
+            score += if count_aces{aces += 1;
+                11} else {0};
+        } else {score += card.value() as u32;}
     }     
     while score > 21 && aces > 0 {
         score -= 10;
@@ -211,6 +213,17 @@ fn get_pair_action(pair_value: u8, dealer_upcard: u8, strategy: &[Vec<Action>]) 
     strategy[row][col]
 }
 
+fn is_soft(hand: &Vec<Card>) -> bool {
+    let nb_as = hand.iter().filter(|c| **c == Card::Ace).count();
+    if nb_as == 0 {return false;}
+    let mut s = calculate_score(&hand, false);
+    for _i in 0..nb_as{
+        s += 11;
+        if s > 21 {return false;}
+    }
+    true
+}
+
 // general: 
 fn get_action(hand: HandType, dealer_upcard: u8, 
         hard_strategy: &[Vec<Action>],
@@ -223,22 +236,25 @@ fn get_action(hand: HandType, dealer_upcard: u8,
         }
 }
 
-fn strat2(game: &mut Game,) ->f64 {
+fn strat_optimale(game: &Game, hand:&Vec<Card>) -> Action{
+    let hand_type = if hand.len() == 2 && hand[0] == hand[1] {
+        HandType::Pair(hand[0].value() as u8)
+    } else if is_soft(hand) {
+        let score = calculate_score(&hand, true);
+        HandType::Soft(score as u8)
+    } else {
+        HandType::Hard(calculate_score(&hand, true) as u8)
+    };
+    get_action(hand_type, game.dealer[0].value(), &STRAT_HARD.as_slice(), &STRAT_SOFT.as_slice(), &STRAT_PAIR.as_slice())
+}
+
+fn test_strat(game: &mut Game,) ->f64 {
     let mut pn = 0;
     loop{
         loop{
             let hand = game.player[pn].cards.clone();
             if hand.len() == 0 || calculate_score(&hand, true) > 21 {break}
-            let hand_type = if game.player[pn].cards.len() == 2 && hand[0] == hand[1] {
-                
-                HandType::Pair(hand[0].value() as u8)
-            } else if game.player[pn].cards.contains(&Card::Ace) && calculate_score(&hand, false) <= 10 {
-                let score = calculate_score(&hand, false);
-                HandType::Soft(score as u8)
-            } else {
-                HandType::Hard(calculate_score(&hand, true) as u8)
-            };
-            let mut act = get_action(hand_type, game.dealer[0].value(), &STRAT_HARD.as_slice(), &STRAT_SOFT.as_slice(), &STRAT_PAIR.as_slice());
+            let mut act = strat_optimale(&game, &hand);
             if act == Action::Stand {break};
             if act == Action::Split(0){act = Action::Split((pn as i32).try_into().unwrap());};
             game.play(&act, false, pn);
@@ -251,15 +267,13 @@ fn strat2(game: &mut Game,) ->f64 {
 
 }
 fn main(){
-    let mut t = 0.0;
     let mut money = 1000.0;
     let bet = 10;
-    for _i in 0..1000{
+    for _i in 0..100_000{
         let mut game = Game::new(bet);
         game.deal_to_player(2, 0);
         game.deal_to_dealer(2);
-        t = strat2(&mut game);
-        println!("{}", t);
+        let t = test_strat(&mut game);
         money += t*(bet as f64);
     }
     println!("{}", money)

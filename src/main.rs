@@ -31,7 +31,7 @@ struct Game {
 }
 impl Game {
     fn new() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let one = vec![Card::Ace, Card::Two, Card::Three, Card::Four, Card::Five,
         Card::Six, Card::Seven, Card::Eight, Card::Nine, Card::Ten,
         Card::Jack, Card::Queen, Card::King];

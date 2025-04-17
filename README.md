@@ -1,3 +1,3 @@
 # rust-blackjack
-blackjack made with rust
-differents strategys are tested in others branchs 
+A command line blackjack made with rust.
+Differents strategys are tested in others branchs 

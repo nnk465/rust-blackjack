@@ -1,120 +1,51 @@
- use rand::seq::SliceRandom;
-use rand::thread_rng;
+mod strat;
+use strat::*;
 
-enum Actions {
-    Hit,
-    Stand,
+
+enum HandType {
+    Hard(u8), // total (par exemple 5 à 21)
+    Soft(u8), // total soft, de 13 (A+2) à 20 (A+9)
+    Pair(u8), // la valeur de la carte en double (11 pour As, puis 10, 9, …, 2)
 }
 
-#[derive(Clone, Debug)]
-enum Card {
-    Ace,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
-    Nine,
-    Ten,
-    Jack,
-    Queen,
-    King,
+/// Pour les mains "hard" de total 5 à 21.
+/// Les lignes (index 0 correspond à total=5, index 16 à total=21).
+/// Colonnes : dealer 2 à 10 (indices 0..8) et 11 pour l’As (index 9)
+fn get_hard_action(player_total: u8, dealer_upcard: u8, strategy: &[Vec<Action>]) -> Action {
+    let row = (player_total - 5) as usize;
+    let col = (dealer_upcard -2) as usize;
+    strategy[row][col]
 }
 
-struct Game {
-    player: Vec<Card>,
-    dealer: Vec<Card>,
-    deck: Vec<Card>,
-    other: Vec<Card>,
+fn get_soft_action(soft_total: u8, dealer_upcard: u8, strategy: &[Vec<Action>]) -> Action {
+    let row = (soft_total - 13) as usize;
+    let col = (dealer_upcard - 2) as usize;
+    strategy[row][col]
 }
-impl Game {
-    fn new() -> Self {
-        let mut rng = rand::thread_rng();
-        let one = vec![Card::Ace, Card::Two, Card::Three, Card::Four, Card::Five,
-        Card::Six, Card::Seven, Card::Eight, Card::Nine, Card::Ten,
-        Card::Jack, Card::Queen, Card::King];
-        let mut deck: Vec<_> = one.iter().cycle().take(4 * one.len()).cloned().collect();
-        deck.shuffle(&mut rng);
-        Game {
-            player: Vec::new(),
-            dealer: Vec::new(),
-            let mut deck: Vec<_> = deck;,
-        }
-    }
 
-    fn deal_card(&mut self, player: bool) {
-        let card = self.draw_card();
-        if player {
-            self.player.push(card);
-        } else {
-            self.dealer.push(card);
-        }
-    }
+fn get_pair_action(pair_value: u8, dealer_upcard: u8, strategy: &[Vec<Action>]) -> Action {
+    let row = (pair_value/2 - 2) as usize;
+    let col = (dealer_upcard - 2) as usize;
+    strategy[row][col]
+}
 
-    fn draw_card(&self) -> Card {
-        if self.deck.is_empty() {
-            panic!("No cards left in the deck");
-        }
-        let card = self.deck[0].clone();
-        self.deck.remove(0);
-        card
-    }
-
-    fn calculate_score(&self, player: bool) -> u32 {
-        let hand = if player { &self.player } else { &self.dealer };
-        let mut score = 0;
-        let mut aces = 0;
-        for card in hand {
-            match card {
-                Card::Ace => {
-                    score += 11;
-                    aces += 1;
-                }
-                Card::Two => score += 2,
-                Card::Three => score += 3,
-                Card::Four => score += 4,
-                Card::Five => score += 5,
-                Card::Six => score += 6,
-                Card::Seven => score += 7,
-                Card::Eight => score += 8,
-                Card::Nine => score += 9,
-                Card::Ten | Card::Jack | Card::Queen | Card::King => score += 10,
-            }
-        }
-        while score > 21 && aces > 0 {
-            score -= 10;
-            aces -= 1;
-        }
-        score
+fn get_action(hand: HandType, dealer_upcard: u8, 
+              hard_strategy: &[Vec<Action>],
+              soft_strategy: &[Vec<Action>],
+              pair_strategy: &[Vec<Action>]) -> Action {
+    match hand {
+        HandType::Hard(total) => get_hard_action(total, dealer_upcard, hard_strategy),
+        HandType::Soft(total) => get_soft_action(total, dealer_upcard, soft_strategy),
+        HandType::Pair(value) => get_pair_action(value, dealer_upcard, pair_strategy),
     }
 }
-fn main(){
-    let mut game = Game::new();
-    game.deal_card(true);
-    game.deal_card(false);
-    game.deal_card(true);
-    game.deal_card(false);
+fn main() {
+    let action1 = get_action(HandType::Hard(10), 9, &STRAT_HARD.as_slice(), &STRAT_SOFT.as_slice(), &STRAT_PAIR.as_slice());
+    println!("Hard(10) vs Dealer 9 => Action: {:?}", action1);
 
-    println!("Player's hand: {:?}", game.player);
-    println!("Dealer's hand: {:?}", game.dealer);
+    let action2 = get_action(HandType::Soft(18), 6, &STRAT_HARD.as_slice(), &STRAT_SOFT.as_slice(), &STRAT_PAIR.as_slice());
+    println!("Soft(18) vs Dealer 6 => Action: {:?}", action2);
 
-    let player_score = game.calculate_score(true);
-    let dealer_score = game.calculate_score(false);
-
-    println!("Player's score: {}", player_score);
-    println!("Dealer's score: {}", dealer_score);
-
-    if player_score > 21 {
-        println!("Player busts! Dealer wins.");
-    } else if dealer_score > 21 {
-        println!("Dealer busts! Player wins.");
-    } else if player_score > dealer_score {
-        println!("Player wins!");
-    } else if dealer_score > player_score {
-        println!("Dealer wins!");
-    } else {
-        println!("It's a tie!");
-    }
+    let action3 = get_action(HandType::Pair(16), 10, &STRAT_HARD.as_slice(), &STRAT_SOFT.as_slice(), &STRAT_PAIR.as_slice());
+    println!("Pair(8,8) vs Dealer 10 => Action: {:?}", action3);
 }

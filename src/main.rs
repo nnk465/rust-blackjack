@@ -1,17 +1,11 @@
 use rand::prelude::SliceRandom;
 use rand;
-use std::borrow::BorrowMut;
 use std::io;
 use std::io::Write;
-use std::cell::RefCell;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
 
-enum Actions {
-    Hit,
-    Stand
-}
 
 #[derive(Clone, Debug)]
 enum Card {
@@ -37,7 +31,7 @@ struct Game {
 }
 impl Game {
     fn new() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let one = vec![Card::Ace, Card::Two, Card::Three, Card::Four, Card::Five,
         Card::Six, Card::Seven, Card::Eight, Card::Nine, Card::Ten,
         Card::Jack, Card::Queen, Card::King];
@@ -112,7 +106,7 @@ impl Game {
     }
 
     fn result(&self) -> f64 {
-        let ds = self.calculate_score(false, 0);    ;
+        let ds = self.calculate_score(false, 0);
         let ps = self.calculate_score(true, 0);
 
         let pbj = {
@@ -140,7 +134,7 @@ impl Game {
 
 
 static GLOBAL_GAME: Lazy<Mutex<Game>> = Lazy::new(|| Mutex::new(Game::new()));
-static MONEY: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(50.0));
+static MONEY: Lazy<Mutex<f64>> = Lazy::new(|| Mutex::new(1000.0));
 
 fn new_game(show:bool) -> MutexGuard<'static, Game> {
     let mut game = GLOBAL_GAME.lock().unwrap(); 
@@ -181,7 +175,6 @@ fn main() {
     for i in 0..1000 {
         strat1();
         println!("{}: money: {}", i, *MONEY.lock().unwrap());
-        let game = GLOBAL_GAME.lock().unwrap();
         io::stdout().flush().unwrap();
         
 

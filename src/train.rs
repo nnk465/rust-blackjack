@@ -2,12 +2,6 @@ use std::collections::HashMap;
 use crate::blackjack::*;
 use rand::seq::SliceRandom;
 
-enum Strat{
-    Hit(u8),
-    Double,
-    Split(Vec<Strat>, Vec<Strat>),
-}
-
 
 fn most_common<T: Eq + std::hash::Hash + Clone>(vec: &[T]) -> Option<T> {
     let mut freq = HashMap::new();
@@ -27,7 +21,7 @@ pub fn train_ia() -> Vec<Vec<Action>>{
         Card::Ace, Card::Two, Card::Three, Card::Four, Card::Five,
         Card::Six, Card::Seven, Card::Eight, Card::Nine, Card::Ten,
     ];
-    let all_actions = vec![
+    let _all_actions = vec![
         Action::Hit, Action::Stand, Action::Double, Action::Split(0),
     ];
     let values = HashMap::from([
@@ -62,52 +56,100 @@ pub fn train_ia() -> Vec<Vec<Action>>{
     model
 }
 
-pub fn test_model(model: &Vec<Vec<Action>>, game: &Game) -> Vec<Action> {
-    let mut actions = vec![];
-    let hand = &game.player[0].cards;
-    let dealer_card = game.dealer[0];
-    let hand_value = calculate_score(hand, true).0;
-    let dealer_value = calculate_score(&vec![dealer_card], true).0;
-    if hand.len() == 2 && hand[0] == hand[1] {
-        actions.push(model[10*hand_value as usize + dealer_value as usize][0].clone());
-    } else {
-        actions.push(model[10*hand_value as usize + dealer_value as usize][0].clone());
-    }
-    actions
-}
+//pub fn test_model(model: &Vec<Vec<Action>>, game: &Game) {}
 
 
 fn number_hit(game: Game, pn: usize) -> usize {
     let mut hand = game.player[pn].cards.clone();
-    let mut scores:Vec<u8> = vec![0; game.deck.len()];
+    let mut scores:Vec<u8> = vec![0; 10];
     for i in 0..game.deck.len() {
         let (score, aces) = calculate_score(&hand, true);
         scores[i] = score as u8;        
         if score > 21 && aces == 0 {
-            let (i, _) = scores.iter().enumerate().max_by_key(|&(_, v)| v).unwrap();
-            return i + 1;
+            let (mut max, _) = scores.iter().enumerate().max_by_key(|&(_, v)| v).unwrap();
+            max -= 1;
+            //println!("{scores:?}");
+            //println!("i: {max}");
+            return max;
         }
         hand.push(game.deck[i].clone()); 
     }
     panic!("No more cards in the deck to hit");
 }
 
-fn try_action(mut game: Game, actions: Vec<Action>, pn: usize) -> f64 {
+fn try_action(game: &mut Game, actions: Vec<Action>, pn: usize) -> f64 {
     for act in actions{
         game.play(&act, false, pn);
     }
     game.dealer_turn();
-    game.result()
+    game.result(Some(&pn))
 }
 
+//fn try_split(mut game: Game, pn: usize) -> f64 {
+//    println!("try split");
+//    game.split(pn);
+//    game.show();
+//    let pn2 = game.player.len() - 1;
+//    let bm1 = best_mooves(&game, pn);
+//
+//    println!("paquet {}: {:?}", pn, bm1);
+//    for act in bm1.clone(){
+//        game.play(&act, false, pn);
+//    }
+//    game.show();
+//    let bm2 = best_mooves(&game, pn2);
+//    println!("paquet {}: {:?}", pn2, bm2);
+//    let result = try_action(&mut game, bm2, pn2);
+//    //println!("paquet {}: {:?}, paquet {}: {:?}", pn, bm1, pn2, pn2); 
+//    
+//    //game.show();
+//    //println!("result: {}", result);
+//    result
+//
+//}
+
+fn is_splitable(hand:&Vec<Card>) -> bool{
+    hand.len() == 2 && hand[0] == hand[1]
+}
 fn try_split(mut game: Game, pn: usize) -> f64 {
     game.split(pn);
     let pn2 = game.player.len() - 1;
-    let bm1 = best_mooves(&game, pn);
-    let bm2 = best_mooves(&game, pn2);
-    let result1 = try_action(game.clone(), bm1, pn);
-    let result2 = try_action(game.clone(), bm2, pn2);
-    result1 + result2 
+    let mut possible_mooves1 = vec![vec![Action::Hit], vec![Action::Hit; 2], vec![Action::Hit; 3], vec![Action::Hit; 4], vec![Action::Hit; 5], vec![Action::Hit; 6], vec![Action::Hit; 7], vec![Action::Hit; 8],
+    vec![Action::Stand]];
+    if is_splitable(&game.player[pn].cards){possible_mooves1.push(vec![Action::Split(pn as i8)]);};
+    if game.player[pn].cards.len() == 2{possible_mooves1.push(vec![Action::Double])}
+
+    let mut possible_mooves2 = vec![vec![Action::Hit], vec![Action::Hit; 2], vec![Action::Hit; 3], vec![Action::Hit; 4], vec![Action::Hit; 5], vec![Action::Hit; 6], vec![Action::Hit; 7], vec![Action::Hit; 8], 
+    vec![Action::Stand]];
+    if is_splitable(&game.player[pn2].cards){possible_mooves2.push(vec![Action::Split(pn2 as i8)]);};
+    if game.player[pn2].cards.len() == 2{possible_mooves2.push(vec![Action::Double])}
+    
+    let mut best_score = f64::NEG_INFINITY;
+    let mut bmm = [&possible_mooves1[0], &possible_mooves2[0]];
+    for act1 in possible_mooves1.clone() {
+        for act2 in possible_mooves2.clone() {
+            let mut cloned_game = game.clone();
+            for moove in &act1{
+                cloned_game.play(moove, false, pn);    
+            }
+            for moove in &act2{
+                cloned_game.play(moove, false, pn2);    
+            }
+            // simule jusqu'à la fin
+            cloned_game.dealer_turn(); // ou try_action ou autre
+            let score = cloned_game.result(None);
+
+            if score > best_score {
+                best_score = score;
+                let bmm = [&act1, &act2];
+                cloned_game.show();
+                println!("score: {score}");
+                println!("best mooves after split: \n  {bmm:?}");
+            }
+        }
+    }
+//    println!("best mooves after split: \n  {bmm:?}");
+    best_score
 }
 
 //differents strats:
@@ -116,39 +158,37 @@ fn try_split(mut game: Game, pn: usize) -> f64 {
 // Split
 
 pub fn best_mooves(game: &Game, pn: usize) -> Vec<Action> {
-    println!("traitement du paquet {pn}");
+    println!("traitement du paquet {:?}", game.player[pn].cards);
     let mut actions = vec![];
 
-    let double_result = try_action(game.clone(), vec![Action::Double], pn);
+    let double_result = try_action(&mut game.clone(), vec![Action::Double], pn);
 
     let nhit = number_hit(game.clone(), pn);
-    let hit_result = try_action(game.clone(), vec![Action::Hit; nhit], pn);
+    let hit_result = try_action(&mut game.clone(), vec![Action::Hit; nhit], pn);
     let hand = &game.player[pn].cards;
-    let splitable = hand.len() == 2  && hand[0] == hand[1];
+    let splitable = is_splitable(hand);
     let split_result = if splitable {
-        try_split(game.clone(), pn)
-        
+        try_split(game.clone(), pn)        
     } else {
-        0.0
+        -500.0
     };
-    if splitable && split_result > hit_result && split_result > double_result {
+    let stand_result = try_action(&mut game.clone(), vec![], pn);
+    if splitable && split_result > hit_result && split_result > double_result && split_result > stand_result {
         actions.push(Action::Split(pn.try_into().unwrap()));
-    } else if double_result > hit_result {
+    } else if double_result > hit_result && double_result > stand_result {
         actions.push(Action::Double);
-    } else if hit_result > double_result {
+    } else if hit_result > stand_result && nhit > 0 {
         actions.push(Action::Hit);
-    } else {
-        println!("égal");
+    } else if stand_result > double_result && stand_result > hit_result || nhit == 0 {
         actions.push(Action::Stand);
+    } else{
+        //println!("égal");
+        actions.push(Action::Hit);
     }
-    println!("Hit: {}, Double: {}, Split: {}", hit_result, double_result, split_result);
+    println!("Paquet {}: Hit x{}: {}, Double: {}, Split: {}, Stand {}",pn, nhit,  hit_result, double_result, if splitable {split_result} else {999.999}, stand_result);
     actions
 }
-
-fn main(){
-    
-}
-
+ 
 
 // fn test_strat(game: &mut Game,) ->f64 {
 //     let mut pn = 0;

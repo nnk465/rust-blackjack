@@ -42,13 +42,6 @@ impl Card {
     }
 }
 
-#[derive(Debug)]
-pub enum HandType {
-    Hard(u8),
-    Soft(u8),
-    Pair(u8),
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub struct Hand{
     pub cards: Vec<Card>,
@@ -61,6 +54,7 @@ pub struct Game {
     pub dealer: Vec<Card>,
     pub deck: Vec<Card>,
     pub bet: i32,
+    double_packets: Vec<usize>,
 }
 
 impl Game {
@@ -72,13 +66,14 @@ impl Game {
         let mut deck: Vec<_> = one.iter().cycle().take(4 * one.len()).cloned().collect();
         deck.shuffle(&mut rng);
         Game {
-            player:vec!(Hand {
+            player: vec!(Hand {
                 cards: Vec::new(),
                 bet: bet,
             }),
             dealer: Vec::new(),
             deck,
             bet: bet,
+            double_packets: Vec::new(),
         }
     }
 
@@ -121,12 +116,12 @@ impl Game {
 
 
     pub fn show(&self) {
-        println!("--== Blackjack ==--");
+        println!("\n\n--== Blackjack ==--");
         println!("-Bet: {}", self.bet);
         for i in 0..self.player.len() {
             println!("-Player's hand {}: {:?}  score:{}", i+1, &self.player[i], calculate_score(&self.player[i].cards, true).0);
         }
-        println!("-Dealer's hand: {:?}  score:{}", &self.dealer, calculate_score(&self.dealer, true).0);
+        println!("-Dealer's hand: {:?}  score:{}\n\n", &self.dealer, calculate_score(&self.dealer, true).0);
     }
 
     pub fn split(&mut self, pn: usize){
@@ -141,10 +136,12 @@ impl Game {
 
     pub fn double(&mut self, pn: usize) {
         if self.player[pn].cards.len() != 2 {
-            panic!("Cannot double because hand is not 2 cards");
+            //panic!("Cannot double because hand is not 2 cards");
+            return
         }
         self.player[pn].bet *= 2;
         self.deal_to_player(1, pn);
+        self.double_packets.push(pn);
     }
 
     pub fn play(&mut self, action: &Action, show: bool, pn: usize) {
@@ -155,9 +152,7 @@ impl Game {
                 }
             }
             Action::Double => {
-                self.double(pn);
-                self.deal_to_player(1, pn);
-            }
+                self.double(pn);}
             Action::Split(pn) => {
                 self.split(*pn as usize);
             }
@@ -170,29 +165,33 @@ impl Game {
             self.deal_to_dealer(1);}
     }
 
-    pub fn result(&self) -> f64 {
-        let pd = &self.player;
+    pub fn result(&self, pn:Option<&usize>) -> f64 {
     
         let (dealer_score, _) = calculate_score(&self.dealer, true);
         let dealer_blackjack = self.dealer.len() == 2 && dealer_score == 21;
     
         let mut total_score = 0.0;
-    
-        for hand in pd.iter() {
+        let pd = match pn {
+            Some(pn) => &vec![self.player[*pn].clone()],
+            None => &self.player,
+        };
+        
+        for (i, hand) in pd.iter().enumerate() {
+            let reward = if self.double_packets.contains(&i) {[-2.0, 0.0, 2.0, 3.0]} else {[-1.0, 0.0, 1.0, 1.5]};
             let (player_score, _) = calculate_score(&hand.cards, true);
             let player_blackjack = hand.cards.len() == 2 && player_score == 21;
-    
+
             match (player_blackjack, dealer_blackjack) {
-                (true, false) => total_score += 1.5,
-                (false, true) => total_score -= 1.0,
+                (true, false) => total_score += reward[3],
+                (false, true) => total_score += reward[0],
                 (true, true) => continue, // égalité blackjack
                 _ => {
                     if player_score > 21 || (dealer_score <= 21 && dealer_score > player_score) {
                         // joueur bust ou dealer gagne
-                        total_score -= 1.0;
+                        total_score += reward[0];
                     } else if player_score > dealer_score || dealer_score > 21 {
                         // joueur gagne
-                        total_score += 1.0;
+                        total_score += reward[2];
                     } else if player_score == dealer_score {
                         // égalité
                         continue;
@@ -202,9 +201,10 @@ impl Game {
                 }
             }
         }
-    
+        //println!("total score de {:?}: {}", pd, total_score);
         total_score
     }
+
     
 
 }

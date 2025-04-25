@@ -77,6 +77,23 @@ impl Game {
         }
     }
 
+    pub fn reset(&mut self, bet: i32, deck:bool) {
+        self.bet = bet;
+        self.player = vec!(Hand {
+            cards: Vec::new(),
+            bet: bet,
+        });
+        self.dealer = Vec::new();
+        if deck{
+            self.deck.clear();
+            let one = vec![Card::Ace, Card::Two, Card::Three, Card::Four, Card::Five,
+            Card::Six, Card::Seven, Card::Eight, Card::Nine, Card::Ten,
+            Card::Jack, Card::Queen, Card::King];
+            let mut deck: Vec<_> = one.iter().cycle().take(4 * one.len()).cloned().collect();
+            deck.shuffle(&mut rand::rng());
+            self.deck = deck;};
+    }
+
     pub fn deal_to_dealer(&mut self, n:i8) {
         for _i in 0..n{
             let card = self.draw_card();

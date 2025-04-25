@@ -14,67 +14,19 @@ fn _test_hand(){
 }
 
 fn main(){
-    let model = [[Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0)],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0)],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Hit, Action::Hit, Action::Hit, Action::Hit],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Hit],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Hit],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Hit],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Hit],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Stand, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0)],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Stand, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Split(0), Action::Split(0), Action::Double, Action::Split(0), Action::Double, Action::Double, Action::Double, Action::Split(0), Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Stand, Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0)],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Stand, Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0)],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Hit, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Double, Action::Split(0)],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Hit],
-    [Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double, Action::Double],
-    [Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0)],
-    [Action::Double, Action::Stand, Action::Double, Action::Stand, Action::Stand, Action::Stand, Action::Stand, Action::Stand, Action::Double, Action::Double],
-    [Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0), Action::Split(0)]];
-    let mut total = 0.0;
-    for _ in 0..10000{
-        let mut game = Game::new(10);
-        game.deal_to_player(2, 0);
-        game.deal_to_dealer(2);
-        total += test_strat(&mut game, &model);
-    }
-    println!("total score: {}", total/10000.0);
+    let model2 = train_ia2(10000);
+    save_model(&model2, "models/model2.json");
+    let model3 = train_ia3(10000);
+    save_model(&model3, "models/model3.json");
+
+
+    //let mut total = 0.0;
+    //for _ in 0..10000{
+    //    let mut game = Game::new(10);
+    //    game.deal_to_player(2, 0);
+    //    game.deal_to_dealer(2);
+    //    total += test_strat(&mut game, &model);
+    //}
+    //println!("total score: {}", total/10000.0);
+
 }

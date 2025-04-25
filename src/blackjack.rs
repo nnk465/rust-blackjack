@@ -1,6 +1,6 @@
 use rand::seq::SliceRandom;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+use serde::{Serialize, Deserialize};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Action {
     Stand, 
     Hit,
@@ -26,9 +26,9 @@ pub enum Card {
 }
 
 impl Card {
-    fn value(&self) -> u8 {
+    pub fn value(&self) -> u8 {
         match self {
-            Card::Ace => 11,
+            Card::Ace => 1,
             Card::Two => 2,
             Card::Three => 3,
             Card::Four => 4,

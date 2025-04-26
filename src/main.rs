@@ -2,6 +2,7 @@ mod train;
 use train::*;
 mod blackjack;
 use blackjack::*;
+use std::process::Command;
 
 fn _test_hand(){
     let mut game = Game::new(10);
@@ -14,10 +15,13 @@ fn _test_hand(){
 }
 
 fn main(){
-    let model2 = train_ia2(10000);
+    let model2 = train_ia2(1000);
     save_model(&model2, "models/model2.json");
-    let model3 = train_ia3(10000);
-    save_model(&model3, "models/model3.json");
+    Command::new("python3").arg("formatter.py").output().expect("Failed to execute script");
+    //println!("{model2:?}");
+
+    //let model3 = train_ia3(1000);
+    //save_model(&model3, "models/model3.json");
 
 
     //let mut total = 0.0;

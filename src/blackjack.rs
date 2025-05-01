@@ -1,11 +1,12 @@
 use rand::seq::SliceRandom;
+use rand::Rng;
 use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Action {
     Stand, 
     Hit,
     Double,
-    Split(i8),
+    Split(u8),
 }
 
 #[derive(Clone, Debug, PartialEq, Hash, Eq)]
@@ -20,9 +21,6 @@ pub enum Card {
     Eight,
     Nine,
     Ten,
-    Jack,
-    Queen,
-    King,
 }
 
 impl Card {
@@ -37,8 +35,22 @@ impl Card {
             Card::Seven => 7,
             Card::Eight => 8,
             Card::Nine => 9,
-            Card::Ten | Card::Jack | Card::Queen | Card::King => 10,
+            Card::Ten => 10,
         }
+    }
+    pub fn all_cards() -> Vec<Card> {
+        vec![
+            Card::Ace,
+            Card::Two,
+            Card::Three,
+            Card::Four,
+            Card::Five,
+            Card::Six,
+            Card::Seven,
+            Card::Eight,
+            Card::Nine,
+            Card::Ten,
+        ]
     }
 }
 
@@ -47,6 +59,9 @@ pub struct Hand{
     pub cards: Vec<Card>,
     pub bet: i32,
 }
+
+
+// for a 4*52 deck
 
 #[derive(Debug, Clone)]
 pub struct Game {
@@ -62,8 +77,9 @@ impl Game {
         let mut rng = rand::rng();
         let one = vec![Card::Ace, Card::Two, Card::Three, Card::Four, Card::Five,
         Card::Six, Card::Seven, Card::Eight, Card::Nine, Card::Ten,
-        Card::Jack, Card::Queen, Card::King];
-        let mut deck: Vec<_> = one.iter().cycle().take(4 * one.len()).cloned().collect();
+        Card::Ten, Card::Ten, Card::Ten];
+        // paquet de 4 jeux de 52 cartes
+        let mut deck: Vec<_> = one.iter().cycle().take(16 * one.len()).cloned().collect();
         deck.shuffle(&mut rng);
         Game {
             player: vec!(Hand {
@@ -77,23 +93,60 @@ impl Game {
         }
     }
 
-    pub fn reset(&mut self, bet: i32, deck:bool) {
-        self.bet = bet;
-        self.player = vec!(Hand {
-            cards: Vec::new(),
-            bet: bet,
-        });
-        self.dealer = Vec::new();
-        if deck{
-            self.deck.clear();
-            let one = vec![Card::Ace, Card::Two, Card::Three, Card::Four, Card::Five,
-            Card::Six, Card::Seven, Card::Eight, Card::Nine, Card::Ten,
-            Card::Jack, Card::Queen, Card::King];
-            let mut deck: Vec<_> = one.iter().cycle().take(4 * one.len()).cloned().collect();
-            deck.shuffle(&mut rand::rng());
-            self.deck = deck;};
+    pub fn gen_with_true_count(player_cards: Vec<Card>, dealer_cards: Vec<Card>, bet: i32, true_count: f64) -> Self {
+        let mut game = Game::new(bet);
+        game.player[0].cards = player_cards.clone();
+        game.dealer = dealer_cards.clone();
+    
+        let draws = rand::rng().random_range(30..150);
+        let mut passed_cards = Vec::with_capacity(draws + player_cards.len() + dealer_cards.len());
+        let mut discards = Vec::with_capacity(draws);
+    
+        for _ in 0..draws {
+            let c = game.deck.remove(0);
+            passed_cards.push(c.clone());
+            discards.push(c);
+        }
+    
+        passed_cards.extend(player_cards.iter().cloned());
+        passed_cards.extend(dealer_cards.iter().cloned());
+    
+        let running_count: i32 = passed_cards
+            .iter()
+            .map(|c| card_to_count(c) as i32)
+            .sum();
+    
+        let decks_remaining = game.deck.len() as f64 / 52.0;
+        let act_true_count = running_count as f64 / decks_remaining;
+        let diff_tc = (true_count - act_true_count).round();    
+        let cards_to_swap = (diff_tc * decks_remaining).abs().round() as usize;
+    
+        if diff_tc > 0.0 {
+            let mut negs = discards
+                .into_iter()
+                .filter(|c| card_to_count(c) == -1)
+                .collect::<Vec<_>>();
+            for _ in 0..cards_to_swap {
+                if let Some(c) = negs.pop() {
+                    game.deck.push(c);
+                }
+            }
+        } else if diff_tc < 0.0 {
+            let mut poss = discards
+                .into_iter()
+                .filter(|c| card_to_count(c) == 1)
+                .collect::<Vec<_>>();
+            for _ in 0..cards_to_swap {
+                if let Some(c) = poss.pop() {
+                    game.deck.push(c);
+                }
+            }
+        }
+        
+        game.double_packets = Vec::new();
+        game
     }
-
+    
     pub fn deal_to_dealer(&mut self, n:i8) {
         for _i in 0..n{
             let card = self.draw_card();
@@ -126,9 +179,7 @@ impl Game {
         if self.deck.is_empty() {
             panic!("No cards left in the deck");
         }
-        let card = self.deck[0].clone();
-        self.deck.remove(0);
-        card
+        self.deck.remove(0)
     }
 
 
@@ -183,7 +234,6 @@ impl Game {
     }
 
     pub fn result(&self, pn:Option<&usize>) -> f64 {
-    
         let (dealer_score, _) = calculate_score(&self.dealer, true);
         let dealer_blackjack = self.dealer.len() == 2 && dealer_score == 21;
     
@@ -194,7 +244,11 @@ impl Game {
         };
         
         for (i, hand) in pd.iter().enumerate() {
-            let reward = if self.double_packets.contains(&i) {[-2.0, 0.0, 2.0, 3.0]} else {[-1.0, 0.0, 1.0, 1.5]};
+            let real_i = match pn {
+                Some(pn) => *pn,
+                None => i,
+            };
+            let reward = if self.double_packets.contains(&real_i) { [-2.0, 0.0, 2.0, 3.0] } else { [-1.0, 0.0, 1.0, 1.5] };            
             let (player_score, _) = calculate_score(&hand.cards, true);
             let player_blackjack = hand.cards.len() == 2 && player_score == 21;
 
@@ -218,7 +272,6 @@ impl Game {
                 }
             }
         }
-        //println!("total score de {:?}: {}", pd, total_score);
         total_score
     }
 
@@ -242,3 +295,14 @@ pub fn calculate_score(hand: &[Card], count_aces: bool) -> (u32, u8) {
     (score.into(), aces.into())
 }
 
+pub fn card_to_count(card:&Card) ->i8{
+    match card {
+        Card::Two | Card::Three | Card::Four | Card::Five | Card::Six => 1,
+        Card::Seven | Card::Eight | Card::Nine => 0,
+        Card::Ten| Card::Ace=> -1,
+    }
+}
+
+fn cards_to_count(cards:&Vec<Card>) -> f64{
+    cards.iter().map(|card| card_to_count(&card)).sum::<i8>() as f64 / 4.0
+}

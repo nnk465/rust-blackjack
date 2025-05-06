@@ -267,14 +267,13 @@ fn test_strat(game: &mut Game,) ->f64 {
 
 }
 fn main(){
-    let mut money = 1000.0;
-    let bet = 10;
+    let mut total = 0.0;
     for _i in 0..100_000{
-        let mut game = Game::new(bet);
+        let mut game = Game::new(10);
         game.deal_to_player(2, 0);
         game.deal_to_dealer(2);
         let t = test_strat(&mut game);
-        money += t*(bet as f64);
+        total += t;
     }
-    println!("{}", money)
+    println!("{}", total/100_000.0);
 }

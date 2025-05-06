@@ -1,65 +1,118 @@
-use std::collections::HashMap;
-
-// au top-level
-lazy_static! {
-    static ref VALID_COMBOS: Vec<(usize,usize,usize)> = {
-        let mut v = Vec::new();
-        for i in 0..10 {
-            for j in i..10 {
-                for k in j..10 {
-                    if i + j + k <= 21 {
-                        v.push((i,j,k));
-                    }
-                }
-            }
+fn number_hit(game: Game, pn: usize) -> usize {
+    let mut hand = game.player[pn].cards.clone();
+    if hand.len() == 0 {game.show(); panic!("No cards in hand")};
+    let mut scores:Vec<u8> = vec![];
+    for i in 0..game.deck.len() {
+        let (score, aces) = calculate_score(&hand, true);
+        scores.push(score as u8);
+        if i > 10{
+            println!("{:?}: {:?}", scores, hand);
+            panic!("")
+        } 
+        if score > 21 && aces == 0 {
+            let (mut max, _) = scores.iter().enumerate().max_by_key(|&(_, v)| v).unwrap();
+            max -= 1;
+            return max;
         }
-        v
-    };
-    static ref COMBO_TO_INDEX: HashMap<(usize,usize,usize), usize> = {
-        VALID_COMBOS
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(idx, triple)| (triple, idx))
-            .collect()
-    };
+        hand.push(game.deck[i].clone()); 
+    }
+    panic!("No more cards in the deck to hit");
 }
 
-/// Index unique de la combinaison non-ordonnée (a,b,c),
-/// parmi celles dont a+b+c ≤ 21.
-fn combo_index(a: usize, b: usize, c: usize) -> usize {
-    let mut v = [a, b, c];
-    v.sort_unstable();
-    let (x, y, z) = (v[0], v[1], v[2]);
-    let mut idx = 0;
 
-    // 1) pour tout i0 < x
-    for i0 in 0..x {
-        for j0 in i0..10 {
-            for k0 in j0..10 {
-                if i0 + j0 + k0 <= 21 {
-                    idx += 1;
-                }
-            }
-        }
+fn fast_try_split(mut game: Game, pn: usize) -> f64 {
+    
+    game.split(pn);
+    let pn2 = game.player.len() - 1;
+    
+    best_mooves(&game, pn).1 + best_mooves(&game, pn2).1
     }
 
-    // 2) pour i0 == x, j0 < y
-    for j0 in x..y {
-        for k0 in j0..10 {
-            if x + j0 + k0 <= 21 {
-                idx += 1;
-            }
-        }
-    }
 
-    // 3) pour i0 == x, j0 == y, k0 < z
-    for k0 in y..z {
-        if x + y + k0 <= 21 {
-            idx += 1;
-        }
-    }
+fn best_mooves(game: &Game, pn: usize) -> (Vec<Action>, f64 ){
+    //println!("traitement du paquet {:?}", game.player[pn].cards);
 
-    idx
+    let results = try_actions(&game, pn);
+    let nhit = number_hit(game.clone(), pn);
+
+    let (stand_result, hit_result, double_result, split_result) = (results[0], results[1], results[2], results[3]);
+    if is_splitable(&game.player[pn].cards) && split_result > hit_result && split_result > double_result && split_result > stand_result {
+        return (vec![Action::Split(pn.try_into().unwrap())], split_result);
+    } else if double_result > hit_result && double_result > stand_result {
+        return (vec![Action::Double], double_result);
+    } else if hit_result > stand_result && nhit> 0 {
+        return (vec![Action::Hit; nhit], hit_result);
+    } else if stand_result > double_result && stand_result > hit_result || nhit == 0 {
+        return (vec![Action::Stand], stand_result);
+    } else{
+        return (vec![Action::Hit; nhit], hit_result);
+    }
+    //println!("Paquet {}: Hit x{}: {}, Double: {}, Split: {}, Stand {}",pn, nhit,  hit_result, double_result, if splitable {split_result} else {999.999}, stand_result);
 }
 
+pub fn card_to_count(card:&Card) ->i8{
+    match card {
+        Card::Two | Card::Three | Card::Four | Card::Five | Card::Six => 1,
+        Card::Seven | Card::Eight | Card::Nine => 0,
+        Card::Ten| Card::Ace=> -1,
+    }
+}
+
+fn cards_to_count(cards:&Vec<Card>) -> f64{
+    cards.iter().map(|card| card_to_count(&card)).sum::<i8>() as f64 / 4.0
+}
+
+
+pub fn gen_with_true_count(player_cards: Vec<Card>, dealer_cards: Vec<Card>, true_count: f64) -> Self {
+    let mut game = Game::new();
+    game.player[0].cards = player_cards.clone();
+    game.dealer = dealer_cards.clone();
+
+    let draws = rand::rng().random_range(30..150);
+    let mut passed_cards = Vec::with_capacity(draws + player_cards.len() + dealer_cards.len());
+    let mut discards = Vec::with_capacity(draws);
+
+    for _ in 0..draws {
+        let c = game.deck.remove(0);
+        passed_cards.push(c.clone());
+        discards.push(c);
+    }
+
+    passed_cards.extend(player_cards.iter().cloned());
+    passed_cards.extend(dealer_cards.iter().cloned());
+
+    let running_count: i32 = passed_cards
+        .iter()
+        .map(|c| card_to_count(c) as i32)
+        .sum();
+
+    let decks_remaining = game.deck.len() as f64 / 52.0;
+    let act_true_count = running_count as f64 / decks_remaining;
+    let diff_tc = (true_count - act_true_count).round();    
+    let cards_to_swap = (diff_tc * decks_remaining).abs().round() as usize;
+
+    if diff_tc > 0.0 {
+        let mut negs = discards
+            .into_iter()
+            .filter(|c| card_to_count(c) == -1)
+            .collect::<Vec<_>>();
+        for _ in 0..cards_to_swap {
+            if let Some(c) = negs.pop() {
+                game.deck.push(c);
+            }
+        }
+    } else if diff_tc < 0.0 {
+        let mut poss = discards
+            .into_iter()
+            .filter(|c| card_to_count(c) == 1)
+            .collect::<Vec<_>>();
+        for _ in 0..cards_to_swap {
+            if let Some(c) = poss.pop() {
+                game.deck.push(c);
+            }
+        }
+    }
+    
+    game.double_packets = Vec::new();
+    game
+}

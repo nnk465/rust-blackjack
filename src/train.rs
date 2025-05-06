@@ -1,4 +1,3 @@
-use rand::Rng;
 use crate::blackjack::*;
 use std::collections::HashMap;
 use std::fs::File;
@@ -7,6 +6,7 @@ use serde::{Serialize, Deserialize};
 use rand::seq::SliceRandom;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use rayon::prelude::*;
 
 
 static ROWS: Lazy<HashMap<Vec<u8>, u16>> = Lazy::new(|| {
@@ -92,6 +92,123 @@ fn draw_bar(current: usize, total: usize) {
     std::io::Write::flush(&mut std::io::stdout()).unwrap(); // forcer l'affichage
 }
 
+pub fn _train_ia_generic(n_cards: usize, iter_training: usize) -> Vec<Vec<ActionModel>> {
+    use std::f64;
+
+    let all_cards = Card::all_cards();
+    let mut hands = Vec::new();
+    gen_hands(n_cards, &all_cards, 0, &mut Vec::new(), &mut hands);
+    let rows = hands.len();
+    let cols = all_cards.len();
+
+    let mut model = vec![vec![ActionModel::Undifined; cols]; rows];
+    let mut game = Game::new();
+    let two = n_cards == 2;
+    for (row_idx, hand) in hands.iter().enumerate() {
+        game.deal_choosen_card(hand.clone(), true, 0);
+
+        for (d_idx, upcard) in all_cards.iter().enumerate() {
+            game.deal_choosen_card(vec![upcard.clone()], false, 0);
+
+            let mut sum = [0.0; 4];
+            let mut sum_sq = [0.0; 4];
+            let mut count = [0; 4];
+            let mut valid = [false; 4];
+
+            loop {
+                // Phase de sampling parallélisée
+                let results: Vec<_> = (0..200).into_par_iter().map(|_| {
+                    let mut thread_game = game.clone();
+                    thread_game.deal_to_dealer(1);
+                    let mut local_sum = [0.0; 4];
+                    let mut local_sum_sq = [0.0; 4];
+                    let mut local_count = [0; 4];
+                    let mut local_valid = [false; 4];
+                    for _ in 0..(iter_training/200).into() {
+                        thread_game.deck.shuffle(&mut rand::rng());
+
+                        let results = if two { try_actions2(&thread_game, 0) } else { try_actions(&thread_game, 0) };
+
+                        // Renvoyer les stats locales pour cette itération
+                        
+
+                        for (i, &res) in results.iter().enumerate() {
+                            if res != f64::NEG_INFINITY {
+                                local_sum[i] += res;
+                                local_sum_sq[i] += res * res;
+                                local_count[i] += 1;
+                                local_valid[i] = true;
+                            }
+                        }}
+
+                    (local_sum, local_sum_sq, local_count, local_valid)
+                }).collect();
+
+                // Aggregation des résultats
+                for (local_sum, local_sum_sq, local_count, local_valid) in results {
+                    for i in 0..4 {
+                        sum[i] += local_sum[i];
+                        if i==0 && *hand == [Card::Ace, Card::Eight]{
+                            println!("{:?}: {:?}", hand, local_sum[i]);
+                        }
+                        sum_sq[i] += local_sum_sq[i];
+                        count[i] += local_count[i];
+                        valid[i] |= local_valid[i];
+                    }
+                }
+
+                // Calcul des moyennes et erreurs
+                let mut mean = [f64::NEG_INFINITY; 4];
+                let mut se = [f64::INFINITY; 4];
+
+                for i in 0..4 {
+                    if valid[i] && count[i] > 1 {
+                        mean[i] = sum[i] / count[i] as f64;
+                        let variance = (sum_sq[i] / count[i] as f64) - (mean[i] * mean[i]);
+                        let std_dev = variance.max(0.0).sqrt();
+                        se[i] = std_dev / (count[i] as f64).sqrt();
+                    }
+                }
+
+                // Détermination des deux meilleures actions
+                let mut ranked: Vec<(usize, f64)> = mean.iter().enumerate().map(|(i, &v)| (i, v)).collect();
+                ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+                let best = ranked[0].0;
+                let second = ranked[1].0;
+
+                // Critère d'arrêt
+                let gap = mean[best] - mean[second];
+                let error_margin = se[best] + se[second];
+
+                if gap > error_margin || count[best] + count[second] > 10_000 {
+                    let esp = mean[best];
+                    if esp == 0.0{println!("{:?} : {:?}", hand, mean);}
+                    model[row_idx][d_idx] = match best {
+                        0 => ActionModel::Stand(esp),
+                        1 => ActionModel::Hit(esp),
+                        2 => ActionModel::Double(esp),
+                        3 => ActionModel::Split(esp),
+                        _ => unreachable!(),
+                    };
+                    break;
+                }
+            }
+
+            game.deck.push(game.dealer.remove(0));
+            draw_bar(row_idx * cols + d_idx + 1, rows * cols);
+        }
+
+        for _ in 0..n_cards {
+            game.deck.push(game.player[0].remove(0));
+        }
+    }
+
+    println!();
+    let mut models = MODELS.lock().unwrap();
+    models[n_cards-2] = model.clone();
+    model
+}
+
 pub fn train_ia_generic(n_cards: usize, iter_training: usize) -> Vec<Vec<ActionModel>> {
     use std::f64;
 
@@ -102,7 +219,7 @@ pub fn train_ia_generic(n_cards: usize, iter_training: usize) -> Vec<Vec<ActionM
     let cols = all_cards.len();
 
     let mut model = vec![vec![ActionModel::Undifined; cols]; rows];
-    let mut game = Game::new(10);
+    let mut game = Game::new();
     let two = n_cards == 2;
     for (row_idx, hand) in hands.iter().enumerate() {
         game.deal_choosen_card(hand.clone(), true, 0);
@@ -110,10 +227,9 @@ pub fn train_ia_generic(n_cards: usize, iter_training: usize) -> Vec<Vec<ActionM
         for (d_idx, upcard) in all_cards.iter().enumerate() {
             game.deal_choosen_card(vec![upcard.clone()], false, 0);
 
-            // Initialisation des statistiques pour chaque action
-            let mut sum = [0.0f64; 4];
-            let mut sum_sq = [0.0f64; 4];
-            let mut count = [0usize; 4];
+            let mut sum = [0.0; 4];
+            let mut sum_sq = [0.0; 4];
+            let mut count = [0; 4];
             let mut valid = [false; 4];
 
             loop {
@@ -144,6 +260,9 @@ pub fn train_ia_generic(n_cards: usize, iter_training: usize) -> Vec<Vec<ActionM
                         let std_dev = variance.max(0.0).sqrt();
                         se[i] = std_dev / (count[i] as f64).sqrt();
                     }
+                    if i==0 && *hand == [Card::Ace, Card::Eight]{
+                        println!("{:?}: {:?}", hand, sum[i]);
+                    }
                 }
 
                 // Détermination des deux meilleures actions
@@ -169,13 +288,12 @@ pub fn train_ia_generic(n_cards: usize, iter_training: usize) -> Vec<Vec<ActionM
                     break;
                 }
             }
-
             game.deck.push(game.dealer.remove(0));
             draw_bar(row_idx * cols + d_idx + 1, rows * cols);
         }
 
         for _ in 0..n_cards {
-            game.deck.push(game.player[0].cards.remove(0));
+            game.deck.push(game.player[0].remove(0));
         }
     }
 
@@ -184,8 +302,6 @@ pub fn train_ia_generic(n_cards: usize, iter_training: usize) -> Vec<Vec<ActionM
     models[n_cards-2] = model.clone();
     model
 }
-
-
 
 pub fn save_model<T: serde::Serialize>(model: &Vec<T>, filename: &str) {
     let f = File::create(filename).expect("Unable to create file");
@@ -216,26 +332,7 @@ fn card_index(c: &Card) -> usize {
 //pub fn test_model(model: &Vec<Vec<Action>>, game: &Game) {}
 
 
-fn number_hit(game: Game, pn: usize) -> usize {
-    let mut hand = game.player[pn].cards.clone();
-    if hand.len() == 0 {game.show(); panic!("No cards in hand")};
-    let mut scores:Vec<u8> = vec![];
-    for i in 0..game.deck.len() {
-        let (score, aces) = calculate_score(&hand, true);
-        scores.push(score as u8);
-        if i > 10{
-            println!("{:?}: {:?}", scores, hand);
-            panic!("")
-        } 
-        if score > 21 && aces == 0 {
-            let (mut max, _) = scores.iter().enumerate().max_by_key(|&(_, v)| v).unwrap();
-            max -= 1;
-            return max;
-        }
-        hand.push(game.deck[i].clone()); 
-    }
-    panic!("No more cards in the deck to hit");
-}
+
 
 fn try_action(game: &mut Game, actions: Vec<Action>, pn: usize) -> f64 {
     for act in actions{
@@ -250,13 +347,7 @@ fn is_splitable(hand:&Vec<Card>) -> bool{
     hand.len() == 2 && hand[0] == hand[1]
 }
 
-fn fast_try_split(mut game: Game, pn: usize) -> f64 {
-    
-    game.split(pn);
-    let pn2 = game.player.len() - 1;
-    
-    best_mooves(&game, pn).1 + best_mooves(&game, pn2).1
-    }
+
 
 //differents strats:
 // Double
@@ -266,7 +357,7 @@ fn fast_try_split(mut game: Game, pn: usize) -> f64 {
 fn eval_hit(game:&mut Game, pn:usize) -> f64 {
     game.deal_to_player(1, pn);
     let upcard = game.dealer[0].clone();
-    let mut hand = game.player[pn].cards.clone();
+    let hand = game.player[pn].clone();
     let score = calculate_score(&hand, true).0;
     if score > 21 {
         return -1.0;
@@ -294,8 +385,8 @@ fn eval_hit(game:&mut Game, pn:usize) -> f64 {
 fn eval_split(game:&mut Game, pn:usize) -> f64 {
     game.split(pn);
     let pn2 = game.player.len() - 1;
-    let mut hand1 = game.player[pn].cards.clone();
-    let mut hand2 = game.player[pn2].cards.clone();
+    let hand1 = game.player[pn].clone();
+    let hand2 = game.player[pn2].clone();
 
     let row1 = get_row_model(&hand1);
     let row2 = get_row_model(&hand2);
@@ -325,7 +416,6 @@ fn eval_split(game:&mut Game, pn:usize) -> f64 {
 }
 
 pub fn try_actions(game: &Game, pn: usize) -> Vec<f64>{
-    let hand = &game.player[pn].cards;
 
     let stand_esp = try_action(&mut game.clone(), vec![Action::Stand], pn);    
 
@@ -336,7 +426,7 @@ pub fn try_actions(game: &Game, pn: usize) -> Vec<f64>{
 }
 
 pub fn try_actions2(game: &Game, pn: usize) -> Vec<f64>{
-    let hand = &game.player[pn].cards;
+    let hand = &game.player[pn];
 
     let mut esps = try_actions(game, pn);    
 
@@ -348,29 +438,8 @@ pub fn try_actions2(game: &Game, pn: usize) -> Vec<f64>{
     esps
 
 }
-
-pub fn best_mooves(game: &Game, pn: usize) -> (Vec<Action>, f64 ){
-    //println!("traitement du paquet {:?}", game.player[pn].cards);
-
-    let results = try_actions(&game, pn);
-    let nhit = number_hit(game.clone(), pn);
-
-    let (stand_result, hit_result, double_result, split_result) = (results[0], results[1], results[2], results[3]);
-    if is_splitable(&game.player[pn].cards) && split_result > hit_result && split_result > double_result && split_result > stand_result {
-        return (vec![Action::Split(pn.try_into().unwrap())], split_result);
-    } else if double_result > hit_result && double_result > stand_result {
-        return (vec![Action::Double], double_result);
-    } else if hit_result > stand_result && nhit> 0 {
-        return (vec![Action::Hit; nhit], hit_result);
-    } else if stand_result > double_result && stand_result > hit_result || nhit == 0 {
-        return (vec![Action::Stand], stand_result);
-    } else{
-        return (vec![Action::Hit; nhit], hit_result);
-    }
-    //println!("Paquet {}: Hit x{}: {}, Double: {}, Split: {}, Stand {}",pn, nhit,  hit_result, double_result, if splitable {split_result} else {999.999}, stand_result);
-}
  
-pub fn use_model(model: &Vec<Vec<ActionModel>>, hand: &Vec<Card>, dcard: &Card, pn: usize) -> ActionModel {
+pub fn use_model(model: &Vec<Vec<ActionModel>>, hand: &Vec<Card>, dcard: &Card) -> ActionModel {
     let row = get_row_model(&hand);
     let col = card_index(dcard);
     model[row][col].clone()
@@ -380,14 +449,14 @@ pub fn test_strat(game: &mut Game) ->f64 {
     let mut pn = 0;
     let models = MODELS.lock().unwrap();
     loop{
-        let hand = game.player[pn].cards.clone();
-        let mut act = use_model(&models[hand.len()], &game.player[pn].cards, &game.dealer[0], pn);
+        let hand = game.player[pn].clone();
+        let mut act = use_model(&models[hand.len()], &game.player[pn], &game.dealer[0]);
         while !matches!(act, ActionModel::Stand(_)) {
             if !calculate_score(&hand, true).0 > 21 {
                 break;
             }
             game.play(&act.to_action(), false, pn);
-            let mut act = use_model(&models[hand.len()], &game.player[pn].cards, &game.dealer[0], pn);
+            act = use_model(&models[hand.len()], &game.player[pn], &game.dealer[0]);
         }
 
         pn += 1;
@@ -417,13 +486,13 @@ fn _real_try_split(mut game: Game, pn: usize) -> f64 {
     
     let mut possible_mooves1 = vec![vec![Action::Hit], vec![Action::Hit; 2], vec![Action::Hit; 3], vec![Action::Hit; 4], vec![Action::Hit; 5], vec![Action::Hit; 6], vec![Action::Hit; 7], vec![Action::Hit; 8],
     vec![Action::Stand]];
-    if is_splitable(&game.player[pn].cards){possible_mooves1.push(vec![Action::Split(pn as u8)]);};
-    if game.player[pn].cards.len() == 2{possible_mooves1.push(vec![Action::Double])}
+    if is_splitable(&game.player[pn]){possible_mooves1.push(vec![Action::Split(pn as u8)]);};
+    if game.player[pn].len() == 2{possible_mooves1.push(vec![Action::Double])}
 
     let mut possible_mooves2 = vec![vec![Action::Hit], vec![Action::Hit; 2], vec![Action::Hit; 3], vec![Action::Hit; 4], vec![Action::Hit; 5], vec![Action::Hit; 6], vec![Action::Hit; 7], vec![Action::Hit; 8], 
     vec![Action::Stand]];
-    if is_splitable(&game.player[pn2].cards){possible_mooves2.push(vec![Action::Split(pn2 as u8)]);};
-    if game.player[pn2].cards.len() == 2{possible_mooves2.push(vec![Action::Double])}
+    if is_splitable(&game.player[pn2]){possible_mooves2.push(vec![Action::Split(pn2 as u8)]);};
+    if game.player[pn2].len() == 2{possible_mooves2.push(vec![Action::Double])}
     
     let mut best_score = f64::NEG_INFINITY;
     for act1 in possible_mooves1.clone() {

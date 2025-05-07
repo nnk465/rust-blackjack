@@ -116,3 +116,39 @@ pub fn gen_with_true_count(player_cards: Vec<Card>, dealer_cards: Vec<Card>, tru
     game.double_packets = Vec::new();
     game
 }
+
+fn _real_try_split(mut game: Game, pn: usize) -> f64 {
+    
+    game.split(pn);
+    let pn2 = game.player.len() - 1;
+    
+    let mut possible_mooves1 = vec![vec![Action::Hit], vec![Action::Hit; 2], vec![Action::Hit; 3], vec![Action::Hit; 4], vec![Action::Hit; 5], vec![Action::Hit; 6], vec![Action::Hit; 7], vec![Action::Hit; 8],
+    vec![Action::Stand]];
+    if is_splitable(&game.player[pn]){possible_mooves1.push(vec![Action::Split(pn as u8)]);};
+    if game.player[pn].len() == 2{possible_mooves1.push(vec![Action::Double])}
+
+    let mut possible_mooves2 = vec![vec![Action::Hit], vec![Action::Hit; 2], vec![Action::Hit; 3], vec![Action::Hit; 4], vec![Action::Hit; 5], vec![Action::Hit; 6], vec![Action::Hit; 7], vec![Action::Hit; 8], 
+    vec![Action::Stand]];
+    if is_splitable(&game.player[pn2]){possible_mooves2.push(vec![Action::Split(pn2 as u8)]);};
+    if game.player[pn2].len() == 2{possible_mooves2.push(vec![Action::Double])}
+    
+    let mut best_score = f64::NEG_INFINITY;
+    for act1 in possible_mooves1.clone() {
+        for act2 in possible_mooves2.clone() {
+            let mut cloned_game = game.clone();
+            for moove in &act1{
+                cloned_game.play(moove, false, pn);    
+            }
+            for moove in &act2{
+                cloned_game.play(moove, false, pn2);    
+            }
+            cloned_game.dealer_turn();
+            let score = cloned_game.result(None);
+
+            if score > best_score {
+                best_score = score;
+            }
+        }
+    }
+    best_score
+}  

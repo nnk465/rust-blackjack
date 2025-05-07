@@ -6,12 +6,12 @@ use std::process::Command;
 
 
 fn training(){
-    println!("Training model 10...");
-    let model = train_ia_generic(10, 20000);
-    save_model(&model, &format!("models/model10.json"));
-    for i in 5..9{
+    //println!("Training model 10...");
+    //let model = train_ia_generic(10, 2000);
+    //save_model(&model, &format!("models/model10.json"));
+    for i in 1..9{
         println!("Training model {}...", 10-i);
-        let model = train_ia_generic(10-i, 10000);
+        let model = train_ia_generic(10-i, 2000);
         save_model(&model, &format!("models/model{}.json", 10-i));
     }
     Command::new("python3").arg("formatter.py").output().expect("Failed to execute script");
@@ -33,11 +33,14 @@ fn test_ia(i:usize){
 fn pass_warnings(){
     if false{
         training();
+        train_ia_generic(0, 0);
+        train_ia_generic2(0, 0);
         test_ia(0);
     }
 }
 fn main(){
     pass_warnings();
+    //training();
     test_ia(100000);
     //let model = train_ia_generic(2, 1000);
     //save_model(&model, "models/model2.json");

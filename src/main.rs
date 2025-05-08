@@ -3,13 +3,13 @@ use train::*;
 mod blackjack;
 use blackjack::*;
 use std::process::Command;
-
+use rayon::prelude::*;
 
 fn training(){
     //println!("Training model 10...");
     //let model = train_ia_generic(10, 2000);
     //save_model(&model, &format!("models/model10.json"));
-    for i in 1..9{
+    for i in 0..9{
         println!("Training model {}...", 10-i);
         let model = train_ia_generic(10-i, 2000);
         save_model(&model, &format!("models/model{}.json", 10-i));
@@ -19,14 +19,15 @@ fn training(){
 
 
 fn test_ia(i:usize){
-    let mut total = 0.0;
-    for _ in 0..i{
-        let mut  game = Game::new();
+    let total: f64 = (0..i).into_par_iter()
+    .map(|_| {
+        let mut game = Game::new();
         game.deal_to_dealer(2);
         game.deal_to_player(2, 0);
-        total += test_strat(&mut game);
-    }
-    println!("total score: {}", total/i as f64);
+        test_strat(&mut game)
+    })
+    .sum();
+    println!("mean {}%", total*100.0/i as f64);
 
 }
 
@@ -40,8 +41,8 @@ fn pass_warnings(){
 }
 fn main(){
     pass_warnings();
+    test_ia(100_000_000)
     //training();
-    test_ia(100000);
     //let model = train_ia_generic(2, 1000);
     //save_model(&model, "models/model2.json");
 

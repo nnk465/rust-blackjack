@@ -153,8 +153,6 @@ pub fn train_ia_generic2(n_cards: usize, iter_training: usize) -> Vec<Vec<Action
                         valid[i] |= local_valid[i];
                     }
                 }
-                println!("{:?}", hand);
-                println!("sum: {:?}", sum);
                 // Calcul des moyennes et erreurs
                 let mut mean = [f64::NEG_INFINITY; 4];
                 let mut se = [f64::INFINITY; 4];
@@ -179,7 +177,6 @@ pub fn train_ia_generic2(n_cards: usize, iter_training: usize) -> Vec<Vec<Action
 
                 if gap > error_margin || count[best] + count[second] > 10_000 {
                     let esp = mean[best];
-                    if esp == 0.0{println!("{:?} | {:?}: {:?}", hand, upcard, mean);}
                     model[row_idx][d_idx] = match best {
                         0 => ActionModel::Stand(esp),
                         1 => ActionModel::Hit(esp),
@@ -188,11 +185,11 @@ pub fn train_ia_generic2(n_cards: usize, iter_training: usize) -> Vec<Vec<Action
                         _ => unreachable!(),
                     };
                     break;
-                }else{println!("oo")}
+                }
             }
 
             game.deck.push(game.dealer.remove(0));
-            //draw_bar(row_idx * cols + d_idx + 1, rows * cols);
+            draw_bar(row_idx * cols + d_idx + 1, rows * cols);
         }
 
         for _ in 0..n_cards {
@@ -377,44 +374,23 @@ fn eval_hit(game:&mut Game, pn:usize) -> f64 {
 fn eval_split(game:&mut Game, pn:usize) -> f64 {
     game.split(pn);
     let pn2 = game.player.len() - 1;
-    let hand1 = game.player[pn].clone();
-    let hand2 = game.player[pn2].clone();
-
-    let row1 = get_row_model(&hand1);
-    let row2 = get_row_model(&hand2);
-    let col = card_index(&game.dealer[0]);
-    let models = MODELS.lock().unwrap();
-    let model = &models[hand1.len()];
-    let action1 = &model[row1][col];
-    let action2 = &model[row2][col];
+    test_model(game, pn);
+    test_model(game, pn2);
     
-    let e1 = match action1 {
-        ActionModel::Hit(esp) => esp,
-        ActionModel::Stand(esp) => esp,
-        ActionModel::Double(esp) => esp,
-        ActionModel::Split(esp) => esp,
-        _ => panic!("Invalid action model"),
-    };
-    
-    let e2 = match action2 {
-        ActionModel::Hit(esp) => esp,
-        ActionModel::Stand(esp) => esp,
-        ActionModel::Double(esp) => esp,
-        ActionModel::Split(esp) => esp,
-        _ => panic!("Invalid action model"),
-    };
-    
-    *e1 + *e2
+    game.dealer_turn();
+    game.result(None)
 }
 
 
 pub fn try_actions(game: &Game, pn: usize) -> Vec<f64>{
 
-    let stand_esp = try_action(&mut game.clone(), vec![Action::Stand], pn);    
+    let mut stand_game = game.clone();
+    stand_game.dealer_turn();
+    let stand_result = stand_game.result(None);    
 
-    let hit_esp = eval_hit(&mut game.clone(), pn);    
+    let hit_result = eval_hit(&mut game.clone(), pn);    
    
-    vec![stand_esp, hit_esp]
+    vec![stand_result, hit_result]
 
 }
 
@@ -422,14 +398,14 @@ pub fn try_actions(game: &Game, pn: usize) -> Vec<f64>{
 pub fn try_actions2(game: &Game, pn: usize) -> Vec<f64>{
     let hand = &game.player[pn];
 
-    let mut esps = try_actions(game, pn);    
+    let mut res = try_actions(game, pn);    
 
     let double_result = if hand.len() == 2{try_action(&mut game.clone(), vec![Action::Double], pn)} else {f64::NEG_INFINITY};
 
     let split_result = if is_splitable(hand) {eval_split(&mut game.clone(), pn)} else {f64::NEG_INFINITY};
     
-    esps.extend(vec![double_result, split_result]);
-    esps
+    res.extend(vec![double_result, split_result]);
+    res
 
 }
  
@@ -439,20 +415,23 @@ pub fn use_model(model: &Vec<Vec<ActionModel>>, hand: &Vec<Card>, dcard: &Card) 
     model[row][col].clone()
 }
 
+pub fn test_model(game: &mut Game, pn:usize) {
+    let models = MODELS.lock().unwrap();
+    let mut act = use_model(&models[0], &game.player[pn], &game.dealer[0]);
+    while !matches!(act, ActionModel::Stand(_)) {
+        if calculate_score(&game.player[pn], true).0 > 21 {
+            break
+        }
+        let ncards = game.player[pn].len();
+        act = use_model(&models[ncards-2], &game.player[pn], &game.dealer[0]);
+        game.play(&act.to_action(), false, pn);
+    }
+}
+
 pub fn test_strat(game: &mut Game) ->f64 {
     let mut pn = 0;
-    let models = MODELS.lock().unwrap();
     loop{
-        let mut act = use_model(&models[0], &game.player[pn], &game.dealer[0]);
-        while !matches!(act, ActionModel::Stand(_)) {
-            let ncards = game.player[pn].len();
-            if calculate_score(&game.player[pn], true).0 > 21 {
-                break;
-            }
-            act = use_model(&models[ncards-2], &game.player[pn], &game.dealer[0]);
-            game.play(&act.to_action(), false, pn);
-            
-        }
+        test_model(game, pn);
         pn += 1;
         if pn >= game.player.len() {break;}
     }

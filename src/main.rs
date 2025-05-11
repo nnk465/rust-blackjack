@@ -1,4 +1,4 @@
- mod train;
+mod train;
 use train::*;
 mod blackjack;
 use blackjack::*;

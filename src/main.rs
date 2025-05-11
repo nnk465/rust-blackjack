@@ -1,4 +1,4 @@
-mod train;
+ mod train;
 use train::*;
 mod blackjack;
 use blackjack::*;
@@ -11,7 +11,7 @@ fn training(){
     //save_model(&model, &format!("models/model10.json"));
     for i in 0..9{
         println!("Training model {}...", 10-i);
-        let model = train_ia_generic(10-i, 2000);
+        let model = train_ia_generic(10-i, 4000*(i+1));
         save_model(&model, &format!("models/model{}.json", 10-i));
     }
     Command::new("python3").arg("formatter.py").output().expect("Failed to execute script");
@@ -41,8 +41,8 @@ fn pass_warnings(){
 }
 fn main(){
     pass_warnings();
-    test_ia(100_000_000)
     //training();
+    test_ia(1_000_000);
     //let model = train_ia_generic(2, 1000);
     //save_model(&model, "models/model2.json");
 
